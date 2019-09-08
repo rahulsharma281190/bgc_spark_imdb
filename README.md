@@ -1,14 +1,21 @@
 # bgc_spark_imdb
 Spark Scala DF API
+
+Attached are two different solutions of the problems. Below is the combined spark scala code for both the problems as well:-
+
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.expressions.Window
 import spark.implicits._
+object IMDBDataAnalyticsDetails {
+def main(args: Array[String]){
 // Create a spark session
 val spark = SparkSession.builder .master("local[*]").appName("BGCExample").getOrCreate()
 //Read the CSV file into a DF
 val title_basics_df=spark.read.option("delimiter", "\t").option("header","true").option("compression","gzip").csv("/user/sharmar2/title.basics.tsv.gz")
 val title_ratings_df=spark.read.option("delimiter", "\t").option("header","true").option("compression","gzip").csv("/user/sharmar2/title.ratings.tsv.gz")
+val name_basics_df=spark.read.option("delimiter", "\t").option("header","true").option("compression","gzip").csv("/user/sharmar2/name.basics.tsv.gz")
+val title_principals_df=spark.read.option("delimiter", "\t").option("header","true").option("compression","gzip").csv("/user/sharmar2/title.principals.tsv.gz")
 //Filter out the DF for the movies titleType
 val movieDf=title_basics_df.selectExpr("tconst","lower(titleType) as titleType","primaryTitle","originalTitle").filter($"titleType"==="movie").drop("titleType")
 //Find out movies having minimum 50 votes
@@ -23,5 +30,13 @@ val myWindow = Window.orderBy($"derived".desc)
 val ranked_df = derived_df.withColumn("Rank",row_number().over(myWindow))
 //Find out the top 20 movies
 val top_20_movie_df = ranked_df.filter($"Rank"<=20)
-//Show the top 20 movies
-top_20_movie_df.select($"primaryTitle",$"originalTitle").show()
+//Save the result dataframe into a csv
+top_20_movie_df.coalesce(1).write.csv("/user/sharmar2/top_20_movies.csv")
+
+//Join the 3 dataframes
+val joined_df = top_20_movie_df.join(title_principals_df,Seq("tconst")).join(name_basics_df,Seq("nconst"))
+//Output the results of the df to csv
+val result_df = joined_df.select($"primaryTitle",$"primaryName",$"knownForTitles").distinct()
+//Save the result Dataframes to a csv
+result_df.coalesce(1).write.csv("/user/sharmar2/names_titles.csv")
+}}
